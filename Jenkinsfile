@@ -93,7 +93,7 @@ pipeline {
                     <p><b>URL del Build:</b> <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></p>
                     <p><b>Consola:</b> <a href="${env.BUILD_URL}console">Ver logs</a></p>
                 """,
-                to: 'juanmavaga12@gmail.com',
+                to: 'juan7.valencia@ucp.edu.co',
                 mimeType: 'text/html'
             )
 
