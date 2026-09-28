@@ -7,6 +7,7 @@ import App from './App';
   expect(linkElement).toBeInTheDocument();
 }); */
 
+// Test que falla
 test('Test que falla', () => { 
   expect(true).toBe(false); 
 });
