@@ -3,7 +3,6 @@ pipeline {
 
     tools {
         nodejs 'Node_24'                  // Configurado en Global Tools
-        sonarScanner 'SonarQubeScanner'  // Configurado en Global Tools
     }
 
     environment {
@@ -11,6 +10,7 @@ pipeline {
 
         SONAR_PROJECT_KEY = 'ucp-app-react'
         SONAR_PROJECT_NAME = 'UCP React App'
+        SCANNER_HOME = tool 'SonarQubeScanner'  // Configurado en Global Tools
     }
 
     stages {
@@ -43,10 +43,12 @@ pipeline {
             steps {
                 withSonarQubeEnv('SonarQube') {
                     sh '''
-                        sonar-scanner \
+                        "${SCANNER_HOME}/bin/sonar-scanner" \
                         -Dsonar.projectKey="${SONAR_PROJECT_KEY}" \
                         -Dsonar.projectName="${SONAR_PROJECT_NAME}" \
                         -Dsonar.sources=src \
+                        -Dsonar.tests=src \
+                        -Dsonar.test.inclusions="**/*.test.js,**/*.test.jsx" \
                         -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
                     '''
                 }
