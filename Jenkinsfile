@@ -2,11 +2,15 @@ pipeline {
     agent any
 
     tools {
-        nodejs 'Node_24' // Configurado en Global Tools
+        nodejs 'Node_24'                  // Configurado en Global Tools
+        sonarScanner 'SonarQubeScanner'  // Configurado en Global Tools
     }
 
     environment {
-        CI = 'true' // Jest corre en modo CI (sin modo interactivo)
+        CI = 'true' // Jest corre en modo CI
+
+        SONAR_PROJECT_KEY = 'ucp-app-react'
+        SONAR_PROJECT_NAME = 'UCP React App'
     }
 
     stages {
@@ -19,7 +23,7 @@ pipeline {
             }
         }
 
-        // Etapa 2: Build
+        // Etapa 2: Instalación y Build
         stage('Build') {
             steps {
                 sh 'npm install'
@@ -27,11 +31,48 @@ pipeline {
             }
         }
 
-        // Etapa 3: Pruebas Paralelizadas
+        // Etapa 3: Generar cobertura para SonarQube
+        stage('Cobertura') {
+            steps {
+                sh 'npm run test:coverage'
+            }
+        }
+
+        // Etapa 4: Análisis con SonarQube
+        stage('SonarQube Analysis') {
+            steps {
+                withSonarQubeEnv('SonarQube') {
+                    sh '''
+                        sonar-scanner \
+                        -Dsonar.projectKey="${SONAR_PROJECT_KEY}" \
+                        -Dsonar.projectName="${SONAR_PROJECT_NAME}" \
+                        -Dsonar.sources=src \
+                        -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+                    '''
+                }
+            }
+        }
+
+        // Etapa 5: Validar Quality Gate
+        stage('Quality Gate') {
+            steps {
+                script {
+                    timeout(time: 5, unit: 'MINUTES') {
+                        def qg = waitForQualityGate()
+
+                        if (qg.status != 'OK') {
+                            error "Calidad no aprobada por SonarQube: ${qg.status}"
+                        }
+                    }
+                }
+            }
+        }
+
+        // Etapa 6: Pruebas Paralelizadas
         stage('Pruebas en Paralelo') {
             parallel {
 
-                // Pruebas "Chrome" (Jest corre en jsdom; el nombre solo identifica la rama)
+                // Pruebas "Chrome"
                 stage('Pruebas Chrome') {
                     steps {
                         script {
@@ -39,7 +80,10 @@ pipeline {
                                 script: 'JEST_JUNIT_OUTPUT_NAME=junit-chrome.xml npm test -- --watchAll=false --ci --reporters=default --reporters=jest-junit',
                                 returnStatus: true
                             )
-                            junit allowEmptyResults: true, testResults: 'junit-chrome.xml'
+
+                            junit allowEmptyResults: true,
+                                testResults: 'junit-chrome.xml'
+
                             if (status != 0) {
                                 unstable('Pruebas en Chrome fallaron')
                             }
@@ -55,7 +99,10 @@ pipeline {
                                 script: 'JEST_JUNIT_OUTPUT_NAME=junit-firefox.xml npm test -- --watchAll=false --ci --reporters=default --reporters=jest-junit',
                                 returnStatus: true
                             )
-                            junit allowEmptyResults: true, testResults: 'junit-firefox.xml'
+
+                            junit allowEmptyResults: true,
+                                testResults: 'junit-firefox.xml'
+
                             if (status != 0) {
                                 unstable('Pruebas en Firefox fallaron')
                             }
@@ -65,11 +112,14 @@ pipeline {
             }
         }
 
-        // Etapa 4: Deploy Simulado (solo si las pruebas pasaron)
+        // Etapa 7: Deploy Simulado
         stage('Deploy a Producción (Simulado)') {
             when {
-                expression { currentBuild.currentResult == 'SUCCESS' }
+                expression {
+                    currentBuild.currentResult == 'SUCCESS'
+                }
             }
+
             steps {
                 sh 'mkdir -p prod && cp -r build/* prod/'
                 echo '¡Deploy simulado exitoso! Archivos copiados a /prod'
@@ -80,7 +130,7 @@ pipeline {
     post {
         always {
 
-            // Publicar reportes HTML (opcional)
+            // Publicar reportes HTML
             publishHTML target: [
                 allowMissing: true,
                 alwaysLinkToLastBuild: true,
@@ -90,14 +140,32 @@ pipeline {
                 reportName: 'Demo Deploy'
             ]
 
-            // Notificación por email con el resultado del build
+            // Notificación por email
             emailext(
                 subject: "Pipeline ${currentBuild.currentResult}: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
                 body: """
                     <h2>Resultado: ${currentBuild.currentResult}</h2>
-                    <p><b>URL del Build:</b> <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></p>
-                    <p><b>Pruebas:</b> <a href="${env.BUILD_URL}testReport">Ver resultados</a></p>
-                    <p><b>Consola:</b> <a href="${env.BUILD_URL}console">Ver logs</a></p>
+
+                    <p>
+                        <b>URL del Build:</b>
+                        <a href="${env.BUILD_URL}">
+                            ${env.BUILD_URL}
+                        </a>
+                    </p>
+
+                    <p>
+                        <b>Pruebas:</b>
+                        <a href="${env.BUILD_URL}testReport">
+                            Ver resultados
+                        </a>
+                    </p>
+
+                    <p>
+                        <b>Consola:</b>
+                        <a href="${env.BUILD_URL}console">
+                            Ver logs
+                        </a>
+                    </p>
                 """,
                 to: 'juan7.valencia@ucp.edu.co',
                 mimeType: 'text/html'
