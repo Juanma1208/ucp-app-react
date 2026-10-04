@@ -49,6 +49,7 @@ pipeline {
                         -Dsonar.sources=src \
                         -Dsonar.tests=src \
                         -Dsonar.test.inclusions="**/*.test.js,**/*.test.jsx" \
+                        -Dsonar.javascript.node.maxspace=1024 \
                         -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
                     '''
                 }
