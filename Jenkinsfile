@@ -115,6 +115,24 @@ pipeline {
             }
         }
 
+        stage('Security Scan with Snyk') {
+            steps {
+                script {
+                    withCredentials([string(credentialsId: 'SNYK_API_TOKEN', variable: 'SNYK_TOKEN')]) {
+                        sh 'npm install -g snyk'
+                        sh 'snyk auth ${SNYK_TOKEN}'
+                        try {
+                            sh 'snyk test --all-projects --severity-threshold=high'
+                        } catch (err) {
+                            echo "Snyk encontró vulnerabilidades altas o críticas: ${err}"
+                            currentBuild.result = 'UNSTABLE'
+                        }
+                        sh 'snyk monitor --all-projects'
+                    }
+                }
+            }
+        }
+
         // Etapa 7: Deploy Simulado
         stage('Deploy a Producción (Simulado)') {
             when {
